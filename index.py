@@ -1,12 +1,16 @@
-
-
 from openai import OpenAI
 import os
 import glob
 import base64
 import requests
 import anthropic
+from pathlib import Path
+from openai import OpenAI
+import json
+from pathlib import Path
 
+
+client = OpenAI()
 
 
 def get_description(image):
@@ -51,11 +55,9 @@ def get_description(image):
     response = requests.post(
         "https://api.openai.com/v1/chat/completions", headers=headers, json=payload
     )
-    print (response.json())
+    print(response.json())
 
     return response.json()["choices"][0]["message"]["content"]
-
-
 
 
 # Get the first image in the current directory
@@ -65,13 +67,14 @@ if image_files:
 else:
     raise FileNotFoundError("No image files found in the current directory.")
 
-#personnages = get_description(image)
-#print(personnages)
+# personnages = get_description(image)
+# print(personnages)
+
 
 def create_story():
     client = anthropic.Anthropic(
         # defaults to os.environ.get("ANTHROPIC_API_KEY")
-        api_key = os.environ.get("CLAUDE_API_KEY"),
+        api_key=os.environ.get("CLAUDE_API_KEY"),
     )
     message = client.messages.create(
         model="claude-3-opus-20240229",
@@ -84,19 +87,21 @@ def create_story():
                 "content": [
                     {
                         "type": "text",
-                        "text": "Let's create a story about a young woman named Lila who discovers she has the power to control the weather. She lives in a small town where everyone knows each other."
+                        "text": "Let's create a story about a young woman named Lila who discovers she has the power to control the weather. She lives in a small town where everyone knows each other.",
                     }
-                ]
+                ],
             }
-        ]
+        ],
     )
     print(message.content)
 
+
 # Call the function
-#create_story()
+# create_story()
 
 # "met dans le peau d'un storyteller, peux-tu créer une histoire, un dialogue ramboleques avec ces trois personnages de dessin animé { "personnages": ["Bibou", "Yoyo", "Gluglu"]}", repons moi avec cette structure xml <perso></perso><dialogue></dialogue>"
 import xml.etree.ElementTree as ET
+
 
 def parse_story(xml_content):
     root = ET.fromstring(f"<root>{xml_content}</root>")
@@ -104,13 +109,14 @@ def parse_story(xml_content):
     current_perso = None
 
     for elem in root.iter():
-        if elem.tag == 'perso':
+        if elem.tag == "perso":
             current_perso = elem.text
-        elif elem.tag == 'dialogue' and current_perso:
-            story.append({'perso': current_perso, 'dialogue': elem.text})
+        elif elem.tag == "dialogue" and current_perso:
+            story.append({"perso": current_perso, "dialogue": elem.text})
             current_perso = None
 
     return story
+
 
 xml_content = """
 <perso>Bibou</perso>
@@ -134,7 +140,56 @@ xml_content = """
 <perso>Bibou</perso>
 <dialogue>En avant, mes amis ! L'aventure la plus farfelue de notre vie nous attend !</dialogue>"""
 
+# xml_content = """
+# <perso>Bibou</perso>
+# <dialogue>Mes amis, j'ai une idée fantastique ! Et si on construisait une machine à voyager dans le temps avec des morceaux de fromage et des plumes de paon ?</dialogue>
+# <perso>Yoyo</perso>
+# <dialogue>Oh, Bibou ! Tu as toujours des idées si farfelues ! Mais... ça pourrait être amusant. Où trouverons-nous autant de fromage ?</dialogue>
+# <perso>Gluglu</perso>
+# <dialogue>J'ai une meilleure idée ! Utilisons des bulles de savon géantes et des chaussettes dépareillées. C'est bien connu, les chaussettes disparaissent toujours mystérieusement. Elles doivent donc avoir des pouvoirs magiques !</dialogue>
+# """
+
+
 parsed_story = parse_story(xml_content)
-for entry in parsed_story:
-    print(f"{entry['perso']}: {entry['dialogue']}")
-    print('-----')
+story_json = json.dumps(parsed_story, ensure_ascii=False, indent=4)
+print(story_json)
+
+
+def generate_audio_from_story(story_json):
+    voices = {"Bibou": "nova", "Yoyo": "alloy", "Gluglu": "shimmer"}
+
+    story_list = json.loads(story_json)
+    for index, entry in enumerate(story_list):
+        perso = entry["perso"]
+        dialogue = entry["dialogue"]
+        voice = voices.get(perso, "default_voice")
+
+        speech_file_path = Path(__file__).parent / f"{index}_speech_{perso}.mp3"
+        response = client.audio.speech.create(
+            model="tts-1", voice=voice, input=dialogue
+        )
+
+        response.stream_to_file(speech_file_path)
+
+
+# Example usage
+# story_json = [
+#     {
+#         "perso": "Bibou",
+#         "dialogue": "Mes amis, j'ai une idée fantastique ! Et si on construisait une machine à voyager dans le temps avec des morceaux de fromage et des plumes de paon ?"
+#     },
+#     {
+#         "perso": "Yoyo",
+#         "dialogue": "Oh, Bibou ! Tu as toujours des idées si farfelues ! Mais... ça pourrait être amusant. Où trouverons-nous autant de fromage ?"
+#     },
+#     {
+#         "perso": "Gluglu",
+#         "dialogue": "J'ai une meilleure idée ! Utilisons des bulles de savon géantes et des chaussettes dépareillées. C'est bien connu, les chaussettes disparaissent toujours mystérieusement. Elles doivent donc avoir des pouvoirs magiques !"
+#     },
+#      {
+#         "perso": "Bibou",
+#         "dialogue": "Genial aurelien"
+#     },
+# ]
+
+generate_audio_from_story(story_json)
