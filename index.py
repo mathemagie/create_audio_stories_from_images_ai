@@ -9,6 +9,8 @@ from openai import OpenAI
 import json
 from pathlib import Path
 
+#coucou
+
 
 client = OpenAI()
 
